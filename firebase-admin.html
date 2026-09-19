@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Свод</title>
+<style>
+  :root {
+    --ink: #1c2b24; --paper: #f6f4ee; --line: #d8d6c8;
+    --accent: #2f5d4f; --accent-soft: #e4ede8; --zero: #f0efe8; --danger:#a13d3d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Segoe UI","Noto Sans",Arial,sans-serif; padding: 20px; }
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { margin: 0; color: #55605a; font-size: 13px; }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .controls label { font-size: 13px; font-weight: 600; margin-right: 4px; }
+  .controls input[type=date] { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .controls button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; }
+  .stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; min-width: 140px; }
+  .stat .num { font-size: 22px; font-weight: 700; color: var(--accent); }
+  .stat .label { font-size: 12px; color: #667; }
+  .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3fae6a; margin-right:6px; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; max-height: 74vh; }
+  table { border-collapse: collapse; font-size: 13px; min-width: 100%; }
+  th, td { padding: 6px 10px; text-align: center; border-bottom: 1px solid #eee; white-space: nowrap; }
+  th { background: var(--accent-soft); position: sticky; top: 0; z-index: 2; font-weight: 700; }
+  td:first-child, th:first-child { position: sticky; left: 0; background: #fff; z-index: 1; text-align: left; font-weight: 600; border-right: 1px solid var(--line); }
+  th:first-child { background: var(--accent-soft); z-index: 3; }
+  tbody tr:nth-child(even) td:not(:first-child) { background: #fafaf5; }
+  .zero { color: #b8b6a8; background: var(--zero) !important; }
+  .col-total { font-weight: 700; background: #eef3f0 !important; }
+  .cell-clickable { cursor: pointer; }
+  .cell-clickable:hover { outline: 2px solid var(--accent); }
+  #detail { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); align-items: center; justify-content: center; padding: 20px; }
+  #detail .box { background: #fff; border-radius: 10px; padding: 20px; max-width: 360px; width: 100%; }
+  #detail h3 { margin: 0 0 10px; font-size: 16px; }
+  #detail ul { list-style: none; padding: 0; margin: 0; font-size: 14px; }
+  #detail li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee; }
+  #detail button { margin-top: 14px; width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; }
+  .empty { padding: 40px; text-align: center; color: #778; }
+
+  #loginBox { max-width: 340px; margin: 80px auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 24px; }
+  #loginBox h2 { margin: 0 0 14px; font-size: 18px; }
+  #loginBox input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; font-size: 15px; }
+  #loginBox button { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
+  #loginErr { color: var(--danger); font-size: 13px; margin-top: 8px; display: none; }
+  #app { display: none; }
+</style>
+</head>
+<body>
+
+<div id="loginBox">
+  <h2>Свод — кириш</h2>
+  <input type="text" id="email" placeholder="Электрон почта">
+  <input type="password" id="password" placeholder="Парол">
+  <button id="loginBtn">Кириш</button>
+  <div id="loginErr"></div>
+</div>
+
+<div id="app">
+  <header>
+    <div>
+      <h1><span class="live-dot"></span>Раҳбарлар йиғилиш ҳисоби — свод</h1>
+      <p>Маълумотлар жонли янгиланади. Катакни босиб турлар бўйича батафсилни кўринг.</p>
+    </div>
+    <div class="controls">
+      <label>Дан</label><input type="date" id="startDate">
+      <label>Гача</label><input type="date" id="endDate">
+      <label>Вилоят</label>
+      <select id="viloyatFilter" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;"><option value="">Барчаси</option></select>
+      <button id="refreshBtn">Қайта ҳисоблаш</button>
+      <button id="logoutBtn" style="background:#8a8577;">Чиқиш</button>
+    </div>
+  </header>
+  <div class="stats" id="stats"></div>
+  <div class="table-wrap" id="tableWrap"><div class="empty">Юкланмоқда...</div></div>
+</div>
+
+<div id="detail">
+  <div class="box">
+    <h3 id="detailTitle"></h3>
+    <ul id="detailList"></ul>
+    <button onclick="document.getElementById('detail').style.display='none'">Ёпиш</button>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import {
+    getFirestore, collection, query, where, onSnapshot
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  // ====== ШУ ЖОЙГА ЎЗ FIREBASE КОНФИГУРАЦИЯНГИЗНИ ҚЎЙИНГ (Entry.html'дагиси билан бир хил) ======
+  const firebaseConfig = {
+    apiKey: "AIzaSyCMP4R_SeyrHlSRZIMbGK-bZvtTFGeLHSA",
+    authDomain: "yig-ilishlar-hisobi.firebaseapp.com",
+    projectId: "yig-ilishlar-hisobi",
+    storageBucket: "yig-ilishlar-hisobi.firebasestorage.app",
+    messagingSenderId: "678205872840",
+    appId: "1:678205872840:web:c17b3faa2370a837ad63fd"
+  };
+  // ================================================================================================
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let unsubscribe = null;
+
+  document.getElementById('loginBtn').addEventListener('click', async function(){
+    const email = document.getElementById('email').value.trim();
+    const pass = document.getElementById('password').value;
+    const err = document.getElementById('loginErr');
+    err.style.display = 'none';
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (e) {
+      err.textContent = 'Кириш хатолиги: email/парол нотўғри.';
+      err.style.display = 'block';
+    }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', function(){
+    signOut(auth);
+  });
+
+  onAuthStateChanged(auth, function(user){
+    if (user) {
+      document.getElementById('loginBox').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      startListening();
+    } else {
+      document.getElementById('loginBox').style.display = 'block';
+      document.getElementById('app').style.display = 'none';
+      if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    }
+  });
+
+  function isoDate(d){ return d.toISOString().slice(0,10); }
+  const today = new Date();
+  const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 29);
+  document.getElementById('startDate').value = isoDate(monthAgo);
+  document.getElementById('endDate').value = isoDate(today);
+
+  let lastDocs = [];
+
+  function startListening(){
+    if (unsubscribe) unsubscribe();
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    const q = query(collection(db, 'entries'), where('date', '>=', start), where('date', '<=', end));
+    document.getElementById('tableWrap').innerHTML = '<div class="empty">Юкланмоқда...</div>';
+    unsubscribe = onSnapshot(q, function(snap){
+      const docs = [];
+      snap.forEach(function(d){ docs.push(d.data()); });
+      lastDocs = docs;
+      populateViloyatFilter(docs);
+      applyFilterAndRender();
+    }, function(err){
+      document.getElementById('tableWrap').innerHTML = '<div class="empty">Хатолик: ' + err.message + '</div>';
+    });
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', startListening);
+  document.getElementById('viloyatFilter').addEventListener('change', applyFilterAndRender);
+
+  function populateViloyatFilter(docs){
+    const sel = document.getElementById('viloyatFilter');
+    const current = sel.value;
+    const viloyats = Array.from(new Set(docs.map(function(d){ return d.viloyat; }).filter(Boolean))).sort(function(a,b){ return a.localeCompare(b); });
+    sel.innerHTML = '<option value="">Барчаси</option>';
+    viloyats.forEach(function(v){
+      const o = document.createElement('option'); o.value = v; o.textContent = v;
+      sel.appendChild(o);
+    });
+    if (viloyats.indexOf(current) !== -1) sel.value = current;
+  }
+
+  function applyFilterAndRender(){
+    const v = document.getElementById('viloyatFilter').value;
+    const filtered = v ? lastDocs.filter(function(d){ return d.viloyat === v; }) : lastDocs;
+    render(filtered);
+  }
+
+  function render(docs){
+    const leadersMap = {};
+    const dateSet = {};
+    docs.forEach(function(d){
+      const key = (d.viloyat || '') + ' | ' + (d.tuman || '') + ' | ' + d.name + ' | ' + d.dept;
+      if (!leadersMap[key]) leadersMap[key] = { name: d.name, dept: d.dept, viloyat: d.viloyat, tuman: d.tuman, days: {}, types: {} };
+      leadersMap[key].days[d.date] = d.total || 0;
+      leadersMap[key].types[d.date] = d.hours || {};
+      leadersMap[key].meetings = leadersMap[key].meetings || {};
+      leadersMap[key].meetings[d.date] = d.meetings || null;
+      dateSet[d.date] = true;
+    });
+    const dates = Object.keys(dateSet).sort();
+    const leaders = Object.values(leadersMap).sort(function(a,b){ return a.name.localeCompare(b.name); });
+
+    let totalHours = 0;
+    leaders.forEach(function(l){ Object.values(l.days).forEach(function(v){ totalHours += v; }); });
+
+    document.getElementById('stats').innerHTML =
+      '<div class="stat"><div class="num">' + leaders.length + '</div><div class="label">Маълумот киритган раҳбар</div></div>' +
+      '<div class="stat"><div class="num">' + dates.length + '</div><div class="label">Кун (танланган даврда)</div></div>' +
+      '<div class="stat"><div class="num">' + totalHours.toFixed(1) + '</div><div class="label">Жами соат</div></div>';
+
+    if (!leaders.length || !dates.length) {
+      document.getElementById('tableWrap').innerHTML = '<div class="empty">Танланган даврда маълумот топилмади.</div>';
+      return;
+    }
+
+    window.__lastLeaders = leaders;
+
+    let html = '<table><thead><tr><th>Раҳбар</th>';
+    dates.forEach(function(d){ html += '<th>' + fmtDate(d) + '</th>'; });
+    html += '<th class="col-total">Жами</th></tr></thead><tbody>';
+
+    leaders.forEach(function(l, li){
+      const locLine = [l.viloyat, l.tuman].filter(Boolean).join(', ');
+      html += '<tr><td>' + escapeHtml(l.name) + '<br><span style="font-weight:400;color:#889">' + escapeHtml(l.dept) + '</span>' +
+        (locLine ? '<br><span style="font-weight:400;color:#aab;font-size:11px">' + escapeHtml(locLine) + '</span>' : '') + '</td>';
+      let rowTotal = 0;
+      dates.forEach(function(d){
+        const v = l.days[d];
+        rowTotal += (v || 0);
+        if (v) {
+          html += '<td class="cell-clickable" onclick="window.__showDetail(' + li + ',\'' + d + '\')">' + v.toString().replace('.', ',') + '</td>';
+        } else {
+          html += '<td class="zero">—</td>';
+        }
+      });
+      html += '<td class="col-total">' + rowTotal.toFixed(1).replace('.', ',') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('tableWrap').innerHTML = html;
+  }
+
+  function fmtDate(iso){ const p = iso.split('-'); return p[2] + '.' + p[1]; }
+  function escapeHtml(s){ return String(s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+
+  window.__showDetail = function(leaderIndex, date){
+    const l = window.__lastLeaders[leaderIndex];
+    const meetings = (l.meetings && l.meetings[date]) || null;
+    const types = (l.types && l.types[date]) || {};
+    document.getElementById('detailTitle').textContent = l.name + ' — ' + fmtDate(date);
+    const list = document.getElementById('detailList');
+    let rows;
+    if (meetings && meetings.length) {
+      rows = meetings.map(function(m){
+        const timePart = m.time ? (m.time + ' — ') : '';
+        return '<li><span>' + timePart + escapeHtml(m.type) + '</span><span>' + m.duration + ' соат</span></li>';
+      }).join('');
+    } else {
+      rows = Object.keys(types).filter(function(t){ return types[t] > 0; }).map(function(t){
+        return '<li><span>' + escapeHtml(t) + '</span><span>' + types[t] + ' соат</span></li>';
+      }).join('');
+    }
+    list.innerHTML = rows || '<li>Маълумот йўқ</li>';
+    document.getElementById('detail').style.display = 'flex';
+  };
+</script>
+</body>
+</html>
