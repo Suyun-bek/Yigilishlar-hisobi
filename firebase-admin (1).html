@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Свод</title>
+<style>
+  :root {
+    --ink: #1c2b24; --paper: #f6f4ee; --line: #d8d6c8;
+    --accent: #2f5d4f; --accent-soft: #e4ede8; --zero: #f0efe8; --danger:#a13d3d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Segoe UI","Noto Sans",Arial,sans-serif; padding: 20px; }
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { margin: 0; color: #55605a; font-size: 13px; }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .controls label { font-size: 13px; font-weight: 600; margin-right: 4px; }
+  .controls input[type=date] { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .controls button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; }
+  .stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; min-width: 140px; }
+  .stat .num { font-size: 22px; font-weight: 700; color: var(--accent); }
+  .stat .label { font-size: 12px; color: #667; }
+  .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3fae6a; margin-right:6px; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; max-height: 74vh; }
+  table { border-collapse: collapse; font-size: 13px; min-width: 100%; }
+  th, td { padding: 6px 10px; text-align: center; border-bottom: 1px solid #eee; white-space: nowrap; }
+  th { background: var(--accent-soft); position: sticky; top: 0; z-index: 2; font-weight: 700; }
+  td:first-child, th:first-child { position: sticky; left: 0; background: #fff; z-index: 1; text-align: left; font-weight: 600; border-right: 1px solid var(--line); }
+  th:first-child { background: var(--accent-soft); z-index: 3; }
+  tbody tr:nth-child(even) td:not(:first-child) { background: #fafaf5; }
+  .zero { color: #b8b6a8; background: var(--zero) !important; }
+  .col-total { font-weight: 700; background: #eef3f0 !important; }
+  .cell-clickable { cursor: pointer; }
+  .cell-clickable:hover { outline: 2px solid var(--accent); }
+  #detail { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); align-items: center; justify-content: center; padding: 20px; }
+  #detail .box { background: #fff; border-radius: 10px; padding: 20px; max-width: 360px; width: 100%; }
+  #detail h3 { margin: 0 0 10px; font-size: 16px; }
+  #detail ul { list-style: none; padding: 0; margin: 0; font-size: 14px; }
+  #detail li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee; }
+  #detail button { margin-top: 14px; width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; }
+  .empty { padding: 40px; text-align: center; color: #778; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tab-btn { padding: 8px 16px; background: #fff; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-weight: 700; color: #667; cursor: pointer; }
+  .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .breadcrumb { font-size: 13px; margin-bottom: 10px; color: #667; }
+  .breadcrumb a { color: var(--accent); text-decoration: underline; cursor: pointer; }
+  .drill-row { cursor: pointer; }
+  .drill-row:hover td { background: var(--accent-soft) !important; }
+  .drill-row td:first-child::after { content: ' →'; color: var(--accent); font-weight: 700; }
+
+  .matrix-table th, .matrix-table td { padding: 5px 8px; font-size: 12px; }
+  .matrix-table th.grp-first, .matrix-table td.grp-first { border-left: 2px solid var(--ink); }
+  .matrix-table .total-row td { background: #eef3f0 !important; font-weight: 700; }
+  .matrix-table td:first-child, .matrix-table th:first-child { text-align: center; }
+  .matrix-table td:nth-child(2), .matrix-table th:nth-child(2) { left: 34px; text-align: left; }
+  .matrix-table .cnt-col { color: #667; }
+  .matrix-table .idx-col { position: sticky; left: 0; background: #fff; z-index: 1; width: 30px; }
+  .matrix-table th.idx-col { background: var(--accent-soft); z-index: 3; }
+
+  #loginBox { max-width: 340px; margin: 80px auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 24px; }
+  #loginBox h2 { margin: 0 0 14px; font-size: 18px; }
+  #loginBox input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; font-size: 15px; }
+  #loginBox button { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
+  #loginErr { color: var(--danger); font-size: 13px; margin-top: 8px; display: none; }
+  #app { display: none; }
+</style>
+</head>
+<body>
+
+<div id="loginBox">
+  <h2>Свод — кириш</h2>
+  <input type="text" id="email" placeholder="Электрон почта">
+  <input type="password" id="password" placeholder="Парол">
+  <button id="loginBtn">Кириш</button>
+  <div id="loginErr"></div>
+</div>
+
+<div id="app">
+  <header>
+    <div>
+      <h1><span class="live-dot"></span>Раҳбарлар йиғилиш ҳисоби — свод</h1>
+      <p>Маълумотлар жонли янгиланади. Катакни босиб турлар бўйича батафсилни кўринг.</p>
+    </div>
+    <div class="controls">
+      <label>Дан</label><input type="date" id="startDate">
+      <label>Гача</label><input type="date" id="endDate">
+      <label>Вилоят</label>
+      <select id="viloyatFilter" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;"><option value="">Барчаси</option></select>
+      <button id="refreshBtn">Қайта ҳисоблаш</button>
+      <button id="logoutBtn" style="background:#8a8577;">Чиқиш</button>
+    </div>
+  </header>
+  <div class="stats" id="stats"></div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="leaders">Раҳбарлар бўйича</button>
+    <button class="tab-btn" data-tab="banks">Банклар бўйича</button>
+    <button class="tab-btn" data-tab="regions">Ҳудудлар бўйича</button>
+  </div>
+  <div class="breadcrumb" id="breadcrumb" style="display:none;"></div>
+  <div class="table-wrap" id="tableWrap"><div class="empty">Юкланмоқда...</div></div>
+</div>
+
+<div id="detail">
+  <div class="box">
+    <h3 id="detailTitle"></h3>
+    <ul id="detailList"></ul>
+    <button onclick="document.getElementById('detail').style.display='none'">Ёпиш</button>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import {
+    getFirestore, collection, query, where, onSnapshot
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  // ====== ШУ ЖОЙГА ЎЗ FIREBASE КОНФИГУРАЦИЯНГИЗНИ ҚЎЙИНГ (Entry.html'дагиси билан бир хил) ======
+  const firebaseConfig = {
+    apiKey: "AIzaSyCMP4R_SeyrHlSRZIMbGK-bZvtTFGeLHSA",
+    authDomain: "yig-ilishlar-hisobi.firebaseapp.com",
+    projectId: "yig-ilishlar-hisobi",
+    storageBucket: "yig-ilishlar-hisobi.firebasestorage.app",
+    messagingSenderId: "678205872840",
+    appId: "1:678205872840:web:c17b3faa2370a837ad63fd"
+  };
+  // ================================================================================================
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let unsubscribe = null;
+
+  document.getElementById('loginBtn').addEventListener('click', async function(){
+    const email = document.getElementById('email').value.trim();
+    const pass = document.getElementById('password').value;
+    const err = document.getElementById('loginErr');
+    err.style.display = 'none';
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (e) {
+      err.textContent = 'Кириш хатолиги: email/парол нотўғри.';
+      err.style.display = 'block';
+    }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', function(){
+    signOut(auth);
+  });
+
+  onAuthStateChanged(auth, function(user){
+    if (user) {
+      document.getElementById('loginBox').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      startListening();
+    } else {
+      document.getElementById('loginBox').style.display = 'block';
+      document.getElementById('app').style.display = 'none';
+      if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    }
+  });
+
+  function isoDate(d){ return d.toISOString().slice(0,10); }
+  const today = new Date();
+  const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 29);
+  document.getElementById('startDate').value = isoDate(monthAgo);
+  document.getElementById('endDate').value = isoDate(today);
+
+  let lastDocs = [];
+  let currentTab = 'leaders';
+  let drillPath = []; // umumiy: joriy tabda tanlangan qiymatlar ketma-ketligi
+
+  const BANK_LEVELS = [
+    { field: 'bank', label: 'Банк' },
+    { field: 'viloyat', label: 'Вилоят' },
+    { field: 'tuman', label: 'Туман / шаҳар' }
+  ];
+  const REGION_LEVELS = [
+    { field: 'viloyat', label: 'Вилоят' },
+    { field: 'tuman', label: 'Туман / шаҳар' },
+    { field: 'bank', label: 'Банк' }
+  ];
+
+  document.querySelectorAll('.tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentTab = btn.dataset.tab;
+      drillPath = [];
+      document.getElementById('viloyatFilter').style.visibility = (currentTab === 'leaders') ? 'visible' : 'hidden';
+      renderCurrent();
+    });
+  });
+
+  function startListening(){
+    if (unsubscribe) unsubscribe();
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    const q = query(collection(db, 'entries'), where('date', '>=', start), where('date', '<=', end));
+    document.getElementById('tableWrap').innerHTML = '<div class="empty">Юкланмоқда...</div>';
+    unsubscribe = onSnapshot(q, function(snap){
+      const docs = [];
+      snap.forEach(function(d){ docs.push(d.data()); });
+      lastDocs = docs;
+      populateViloyatFilter(docs);
+      applyFilterAndRender();
+    }, function(err){
+      document.getElementById('tableWrap').innerHTML = '<div class="empty">Хатолик: ' + err.message + '</div>';
+    });
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', startListening);
+  document.getElementById('viloyatFilter').addEventListener('change', applyFilterAndRender);
+
+  function populateViloyatFilter(docs){
+    const sel = document.getElementById('viloyatFilter');
+    const current = sel.value;
+    const viloyats = Array.from(new Set(docs.map(function(d){ return d.viloyat; }).filter(Boolean))).sort(function(a,b){ return a.localeCompare(b); });
+    sel.innerHTML = '<option value="">Барчаси</option>';
+    viloyats.forEach(function(v){
+      const o = document.createElement('option'); o.value = v; o.textContent = v;
+      sel.appendChild(o);
+    });
+    if (viloyats.indexOf(current) !== -1) sel.value = current;
+  }
+
+  function applyFilterAndRender(){
+    renderCurrent();
+  }
+
+  function getBaseFiltered(){
+    const v = document.getElementById('viloyatFilter').value;
+    return v ? lastDocs.filter(function(d){ return d.viloyat === v; }) : lastDocs;
+  }
+
+  function updateStats(rows, dates){
+    let totalHours = 0;
+    rows.forEach(function(r){ Object.values(r.days).forEach(function(v){ totalHours += v; }); });
+    document.getElementById('stats').innerHTML =
+      '<div class="stat"><div class="num">' + rows.length + '</div><div class="label">Қатор</div></div>' +
+      '<div class="stat"><div class="num">' + dates.length + '</div><div class="label">Кун (танланган даврда)</div></div>' +
+      '<div class="stat"><div class="num">' + totalHours.toFixed(1) + '</div><div class="label">Жами соат</div></div>';
+  }
+
+  // Umumiy pivot quruvchi: docs'ni keyFn bo'yicha guruhlaydi, har bir sana uchun total yig'adi
+  function buildPivot(docs, keyFn, makeRow){
+    const map = {};
+    const dateSet = {};
+    docs.forEach(function(d){
+      const key = keyFn(d);
+      if (!map[key]) map[key] = makeRow(d);
+      map[key].days[d.date] = (map[key].days[d.date] || 0) + (d.total || 0);
+      map[key]._docs = map[key]._docs || [];
+      map[key]._docs.push(d);
+      dateSet[d.date] = true;
+    });
+    const dates = Object.keys(dateSet).sort();
+    const rows = Object.values(map).sort(function(a,b){ return a.label.localeCompare(b.label); });
+    return { dates: dates, rows: rows };
+  }
+
+  function renderPivotTable(pivot, opts){
+    opts = opts || {};
+    const dates = pivot.dates, rows = pivot.rows;
+    if (!rows.length || !dates.length) {
+      document.getElementById('tableWrap').innerHTML = '<div class="empty">Танланган даврда маълумот топилмади.</div>';
+      updateStats([], []);
+      return;
+    }
+    updateStats(rows, dates);
+    window.__lastRows = rows;
+
+    let html = '<table><thead><tr><th>' + (opts.rowHeader || 'Ном') + '</th>';
+    dates.forEach(function(d){ html += '<th>' + fmtDate(d) + '</th>'; });
+    html += '<th class="col-total">Жами</th></tr></thead><tbody>';
+
+    rows.forEach(function(r, ri){
+      const rowClass = opts.onRowClick ? ' class="drill-row"' : '';
+      const rowClick = opts.onRowClick ? ' onclick="window.__rowClick(' + ri + ')"' : '';
+      html += '<tr' + rowClass + rowClick + '><td>' + escapeHtml(r.label) +
+        (r.sub ? '<br><span style="font-weight:400;color:#889">' + escapeHtml(r.sub) + '</span>' : '') +
+        (r.sub2 ? '<br><span style="font-weight:400;color:#aab;font-size:11px">' + escapeHtml(r.sub2) + '</span>' : '') + '</td>';
+      let rowTotal = 0;
+      dates.forEach(function(d){
+        const v = r.days[d];
+        rowTotal += (v || 0);
+        if (v) {
+          const cellClick = opts.onCellClick ? (' class="cell-clickable" onclick="event.stopPropagation();window.__cellClick(' + ri + ',\'' + d + '\')"') : '';
+          html += '<td' + cellClick + '>' + v.toString().replace('.', ',') + '</td>';
+        } else {
+          html += '<td class="zero">—</td>';
+        }
+      });
+      html += '<td class="col-total">' + rowTotal.toFixed(1).replace('.', ',') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('tableWrap').innerHTML = html;
+
+    window.__rowClick = opts.onRowClick ? function(ri){ opts.onRowClick(rows[ri]); } : function(){};
+    window.__cellClick = opts.onCellClick ? function(ri, date){ opts.onCellClick(rows[ri], date); } : function(){};
+  }
+
+  function showDetailForDocs(docs, date, title){
+    const dayDocs = docs.filter(function(d){ return d.date === date; });
+    document.getElementById('detailTitle').textContent = title + ' — ' + fmtDate(date);
+    const list = document.getElementById('detailList');
+    let items = [];
+    dayDocs.forEach(function(d){
+      if (d.meetings && d.meetings.length) {
+        d.meetings.forEach(function(m){
+          const who = dayDocs.length > 1 ? (d.name + ': ') : '';
+          const timePart = m.time ? (m.time + ' — ') : '';
+          items.push('<li><span>' + who + timePart + escapeHtml(m.type) + '</span><span>' + m.duration + ' соат</span></li>');
+        });
+      } else if (d.hours) {
+        Object.keys(d.hours).filter(function(t){ return d.hours[t] > 0; }).forEach(function(t){
+          const who = dayDocs.length > 1 ? (d.name + ': ') : '';
+          items.push('<li><span>' + who + escapeHtml(t) + '</span><span>' + d.hours[t] + ' соат</span></li>');
+        });
+      }
+    });
+    list.innerHTML = items.join('') || '<li>Маълумот йўқ</li>';
+    document.getElementById('detail').style.display = 'flex';
+  }
+
+  function renderCurrent(){
+    if (currentTab === 'leaders') return renderLeadersTab();
+    if (currentTab === 'banks') return renderDrillTab(BANK_LEVELS);
+    if (currentTab === 'regions') return renderDrillTab(REGION_LEVELS);
+  }
+
+  function renderLeadersTab(){
+    document.getElementById('breadcrumb').style.display = 'none';
+    const docs = getBaseFiltered();
+    const pivot = buildPivot(docs,
+      function(d){ return d.viloyat + '|' + d.tuman + '|' + d.name + '|' + d.dept; },
+      function(d){
+        const locLine = [d.viloyat, d.tuman].filter(Boolean).join(', ');
+        return { label: d.name, sub: d.dept, sub2: locLine, days: {} };
+      });
+    renderPivotTable(pivot, {
+      rowHeader: 'Раҳбар',
+      onCellClick: function(row, date){ showDetailForDocs(row._docs, date, row.label); }
+    });
+  }
+
+  const MEETING_TYPES = [
+    "Президент селектори", "Администрация", "Вазирлар Маҳкамаси", "Вазирлик ва идоралар",
+    "Марказий банк", "Тижорат банклари бошқаруви", "Тижорат банклари вилоят бошқармаси",
+    "Ҳуқуқни муҳофаза қилувчи органлар", "Вилоят ҳокимлиги", "Туман (шаҳар) ҳокимлиги", "Бошқалар"
+  ];
+
+  // docs'ni keyFn bo'yicha guruhlaydi va har bir yig'ilish turi uchun
+  // (a) yig'ilish soni va (b) ishtirok etgan (distinct) rahbarlar sonini hisoblaydi.
+  function buildTypeMatrix(docs, keyFn, labelFn){
+    function emptyCounts(){
+      const o = {};
+      MEETING_TYPES.forEach(function(t){ o[t] = { count: 0, leaders: new Set() }; });
+      return o;
+    }
+    const rowsMap = {};
+    const totalRow = { label: 'ЖАМИ', typeCounts: emptyCounts(), totalMeetings: 0, totalLeaders: new Set(), _docs: docs };
+
+    docs.forEach(function(doc){
+      const key = keyFn(doc);
+      if (!rowsMap[key]) {
+        rowsMap[key] = { label: labelFn(doc), typeCounts: emptyCounts(), totalMeetings: 0, totalLeaders: new Set(), _docs: [] };
+      }
+      rowsMap[key]._docs.push(doc);
+      const leaderId = doc.name + '|' + doc.dept;
+      const meetings = (doc.meetings && doc.meetings.length) ? doc.meetings :
+        Object.keys(doc.hours || {}).filter(function(t){ return doc.hours[t] > 0; }).map(function(t){ return { type: t }; });
+      let participated = false;
+      meetings.forEach(function(m){
+        if (!m.type || !rowsMap[key].typeCounts[m.type]) return;
+        participated = true;
+        rowsMap[key].typeCounts[m.type].count++;
+        rowsMap[key].typeCounts[m.type].leaders.add(leaderId);
+        rowsMap[key].totalMeetings++;
+        totalRow.typeCounts[m.type].count++;
+        totalRow.typeCounts[m.type].leaders.add(leaderId);
+        totalRow.totalMeetings++;
+      });
+      if (participated) {
+        rowsMap[key].totalLeaders.add(leaderId);
+        totalRow.totalLeaders.add(leaderId);
+      }
+    });
+
+    const rows = Object.values(rowsMap).sort(function(a,b){ return a.label.localeCompare(b.label); });
+    return { rows: rows, totalRow: totalRow };
+  }
+
+  function renderMatrixTable(matrix, opts){
+    opts = opts || {};
+    const rows = matrix.rows, totalRow = matrix.totalRow;
+
+    document.getElementById('stats').innerHTML =
+      '<div class="stat"><div class="num">' + totalRow.totalMeetings + '</div><div class="label">Жами йиғилиш сони</div></div>' +
+      '<div class="stat"><div class="num">' + totalRow.totalLeaders.size + '</div><div class="label">Иштирок этган раҳбарлар</div></div>' +
+      '<div class="stat"><div class="num">' + rows.length + '</div><div class="label">' + (opts.rowHeader || 'Қатор') + ' сони</div></div>';
+
+    if (!rows.length) {
+      document.getElementById('tableWrap').innerHTML = '<div class="empty">Танланган даврда маълумот топилмади.</div>';
+      return;
+    }
+
+    window.__lastMatrixRows = rows;
+
+    let html = '<table class="matrix-table"><thead>';
+    html += '<tr><th class="idx-col" rowspan="2">Т/р</th><th rowspan="2">' + (opts.rowHeader || 'Ном') + '</th>' +
+      '<th colspan="2">Жами ўтказилган йиғилишлар</th>' +
+      '<th colspan="' + (MEETING_TYPES.length * 2) + '">шундан</th></tr>';
+    html += '<tr><th class="grp-first">йиғилиш сони</th><th>иштирок раҳбарлар</th>';
+    MEETING_TYPES.forEach(function(t, i){
+      html += '<th class="grp-first">' + escapeHtml(t) + '<br><span class="cnt-col">йиғилиш сони</span></th>' +
+        '<th><span class="cnt-col">иштирок раҳбарлар</span></th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    function rowCells(r){
+      let c = '<td class="grp-first">' + r.totalMeetings + '</td><td>' + r.totalLeaders.size + '</td>';
+      MEETING_TYPES.forEach(function(t){
+        const tc = r.typeCounts[t];
+        c += '<td class="grp-first">' + (tc.count || '—') + '</td><td>' + (tc.leaders.size || '—') + '</td>';
+      });
+      return c;
+    }
+
+    html += '<tr class="total-row"><td></td><td>ЖАМИ</td>' + rowCells(totalRow) + '</tr>';
+
+    rows.forEach(function(r, ri){
+      const clickable = opts.onRowClick || opts.onLeafClick;
+      const rowClass = opts.onRowClick ? ' class="drill-row"' : (opts.onLeafClick ? ' class="cell-clickable"' : '');
+      const rowClick = clickable ? ' onclick="window.__matrixRowClick(' + ri + ')"' : '';
+      html += '<tr' + rowClass + rowClick + '><td>' + (ri+1) + '</td><td>' + escapeHtml(r.label) +
+        (r.sub ? '<br><span style="font-weight:400;color:#889;font-size:11px">' + escapeHtml(r.sub) + '</span>' : '') +
+        '</td>' + rowCells(r) + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('tableWrap').innerHTML = html;
+
+    window.__matrixRowClick = function(ri){
+      const row = rows[ri];
+      if (opts.onRowClick) opts.onRowClick(row);
+      else if (opts.onLeafClick) opts.onLeafClick(row);
+    };
+  }
+
+  function showDetailForLeader(docs, title){
+    document.getElementById('detailTitle').textContent = title;
+    const list = document.getElementById('detailList');
+    let items = [];
+    docs.slice().sort(function(a,b){ return a.date.localeCompare(b.date); }).forEach(function(d){
+      const meetings = (d.meetings && d.meetings.length) ? d.meetings :
+        Object.keys(d.hours || {}).filter(function(t){ return d.hours[t] > 0; }).map(function(t){ return { type: t, duration: d.hours[t] }; });
+      meetings.forEach(function(m){
+        const timePart = m.time ? (m.time + ' — ') : '';
+        items.push('<li><span>' + fmtDate(d.date) + ': ' + timePart + escapeHtml(m.type) + '</span><span>' + (m.duration || '') + ' соат</span></li>');
+      });
+    });
+    list.innerHTML = items.join('') || '<li>Маълумот йўқ</li>';
+    document.getElementById('detail').style.display = 'flex';
+  }
+
+  // Умумий "ичкари кириб бориш" функцияси: levels — масалан [Банк, Вилоят, Туман]
+  // drillPath.length ҳали levels.length'дан кам бўлса — навбатдаги даражани кўрсатади;
+  // барча даражалар танлангач — шу кесимдаги раҳбарлар рўйхатини (матрица жадвал) кўрсатади.
+  function renderDrillTab(levels){
+    const docs = lastDocs;
+    const bc = document.getElementById('breadcrumb');
+    bc.style.display = 'block';
+
+    let filtered = docs;
+    levels.forEach(function(lvl, i){
+      if (i < drillPath.length) {
+        filtered = filtered.filter(function(d){ return d[lvl.field] === drillPath[i]; });
+      }
+    });
+
+    let crumbs = ['<a onclick="window.__bcTo(0)">Барчаси</a>'];
+    drillPath.forEach(function(val, i){
+      crumbs.push('<a onclick="window.__bcTo(' + (i+1) + ')">' + escapeHtml(val) + '</a>');
+    });
+    bc.innerHTML = crumbs.join(' &rsaquo; ');
+    window.__bcTo = function(depth){ drillPath = drillPath.slice(0, depth); renderCurrent(); };
+
+    if (drillPath.length < levels.length) {
+      const lvl = levels[drillPath.length];
+      const nextLvl = levels[drillPath.length + 1];
+      const matrix = buildTypeMatrix(filtered,
+        function(d){ return d[lvl.field]; },
+        function(d){ return d[lvl.field] || '(номаълум)'; });
+      matrix.rows.forEach(function(r){
+        const field = nextLvl ? nextLvl.field : null;
+        if (field) {
+          const cnt = new Set(r._docs.map(function(d){ return d[field]; })).size;
+          r.sub = cnt + ' ' + nextLvl.label.toLowerCase();
+        }
+      });
+      renderMatrixTable(matrix, {
+        rowHeader: lvl.label,
+        onRowClick: function(row){ drillPath = drillPath.concat([row.label]); renderCurrent(); }
+      });
+      return;
+    }
+
+    // Барча даражалар танланган — раҳбарлар рўйхати (матрица)
+    const matrix = buildTypeMatrix(filtered,
+      function(d){ return d.name + '|' + d.dept; },
+      function(d){ return d.name; });
+    matrix.rows.forEach(function(r){ r.sub = r._docs[0] ? r._docs[0].dept : ''; });
+    renderMatrixTable(matrix, {
+      rowHeader: 'Раҳбар',
+      onLeafClick: function(row){ showDetailForLeader(row._docs, row.label); }
+    });
+  }
+
+  function fmtDate(iso){ const p = iso.split('-'); return p[2] + '.' + p[1]; }
+  function escapeHtml(s){ return String(s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+
+</script>
+</body>
+</html>
