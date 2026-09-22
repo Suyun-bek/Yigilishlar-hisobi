@@ -573,26 +573,80 @@
 
   const MEETING_TYPES = [
     "Президент селектори", "Администрация", "Вазирлар Маҳкамаси", "Вазирлик ва идоралар",
-    "Марказий банк", "Тижорат банклари бошқаруви", "Тижорат банклари вилоят бошқармаси",
-    "Ҳуқуқни муҳофаза қилувчи органлар", "Вилоят ҳокимлиги", "Туман (шаҳар) ҳокимлиги", "Бошқалар"
+    "Марказий банк", "Марказий банк вилоят бош бошқармаси",
+    "Тижорат банклари бошқаруви", "Тижорат банклари вилоят бошқармаси",
+    "Ҳуқуқни муҳофаза қилувчи органлар (республика)", "Ҳуқуқни муҳофаза қилувчи органлар (ҳудуд)",
+    "Ҳуқуқни муҳофаза қилувчи органлар (туман)",
+    "Вилоят ҳокимлиги", "Туман (шаҳар) ҳокимлиги",
+    "Бошқалар (республика)", "Бошқалар (ҳудуд)", "Бошқалар (туман)"
   ];
 
   // docs'ni keyFn bo'yicha guruhlaydi va har bir yig'ilish turi uchun
   // (a) yig'ilish soni va (b) ishtirok etgan (distinct) rahbarlar sonini hisoblaydi.
   // seedList (ixtiyoriy): [{key,label,sub}] — ma'lumot kelmagan bo'lsa ham 0 qator sifatida ko'rsatish uchun.
+  // Вақтни 30 дақиқалик "уячалар"га яхлитлайди — деярли бир хил вақтда
+  // киритилган ёзувларни битта воқеа сифатида бирлаштириш учун.
+  function roundTimeSlot(time){
+    if (!time) return 'vaqtsiz';
+    const parts = time.split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    const totalMin = h * 60 + m;
+    const rounded = Math.round(totalMin / 30) * 30;
+    const rh = Math.floor(rounded / 60) % 24;
+    const rm = rounded % 60;
+    return (rh < 10 ? '0' : '') + rh + ':' + (rm < 10 ? '0' : '') + rm;
+  }
+
+  // Ҳар бир йиғилиш тури қайси доирада "бир хил воқеа" деб ҳисобланиши:
+  // 'national'      — бутун мамлакат бўйича бир хил вақт бўлса, битта воқеа (ким бўлса ҳам)
+  // 'viloyat'       — фақат бир хил вилоятда бир хил вақт бўлса, битта воқеа
+  // 'tuman'         — фақат бир хил вилоят+туманда бир хил вақт бўлса, битта воқеа
+  // 'bank-national' — фақат бир хил БАНК бўйича, бутун мамлакатда бир хил вақт бўлса, битта воқеа
+  // 'bank-viloyat'  — фақат бир хил БАНК ва бир хил вилоятда бир хил вақт бўлса, битта воқеа
+  // 'none'          — ҳеч қачон бирлаштирилмайди (ҳар филиалнинг ўзи алоҳида)
+  const TYPE_SCOPE = {
+    "Президент селектори": "national",
+    "Администрация": "national",
+    "Вазирлар Маҳкамаси": "national",
+    "Вазирлик ва идоралар": "national",
+    "Марказий банк": "national",
+    "Марказий банк вилоят бош бошқармаси": "viloyat",
+    "Тижорат банклари бошқаруви": "bank-national",
+    "Тижорат банклари вилоят бошқармаси": "bank-viloyat",
+    "Ҳуқуқни муҳофаза қилувчи органлар (республика)": "national",
+    "Ҳуқуқни муҳофаза қилувчи органлар (ҳудуд)": "viloyat",
+    "Ҳуқуқни муҳофаза қилувчи органлар (туман)": "tuman",
+    "Вилоят ҳокимлиги": "viloyat",
+    "Туман (шаҳар) ҳокимлиги": "tuman",
+    "Бошқалар (республика)": "national",
+    "Бошқалар (ҳудуд)": "viloyat",
+    "Бошқалар (туман)": "tuman"
+  };
+
+  function eventScopeSuffix(doc, type){
+    const scope = TYPE_SCOPE[type] || 'none';
+    if (scope === 'national') return '';
+    if (scope === 'viloyat') return '_' + (doc.viloyat || '');
+    if (scope === 'tuman') return '_' + (doc.viloyat || '') + '|' + (doc.tuman || '');
+    if (scope === 'bank-national') return '_' + (doc.bank || '');
+    if (scope === 'bank-viloyat') return '_' + (doc.bank || '') + '|' + (doc.viloyat || '');
+    return '_' + (doc.filial || (doc.name + '|' + doc.dept));
+  }
+
   function buildTypeMatrix(docs, keyFn, labelFn, seedList){
     function emptyCounts(){
       const o = {};
-      MEETING_TYPES.forEach(function(t){ o[t] = { count: 0, leaders: new Set() }; });
+      MEETING_TYPES.forEach(function(t){ o[t] = { events: new Map(), leaders: new Set() }; });
       return o;
     }
     const rowsMap = {};
-    const totalRow = { label: 'ЖАМИ', typeCounts: emptyCounts(), totalMeetings: 0, totalLeaders: new Set(), _docs: docs };
+    const totalRow = { label: 'ЖАМИ', typeCounts: emptyCounts(), totalLeaders: new Set(), _docs: docs };
 
     if (seedList) {
       seedList.forEach(function(s){
         if (!rowsMap[s.key]) {
-          rowsMap[s.key] = { label: s.label, sub: s.sub || '', typeCounts: emptyCounts(), totalMeetings: 0, totalLeaders: new Set(), _docs: [] };
+          rowsMap[s.key] = { label: s.label, sub: s.sub || '', typeCounts: emptyCounts(), totalLeaders: new Set(), _docs: [] };
         }
       });
     }
@@ -600,28 +654,50 @@
     docs.forEach(function(doc){
       const key = keyFn(doc);
       if (!rowsMap[key]) {
-        rowsMap[key] = { label: labelFn(doc), typeCounts: emptyCounts(), totalMeetings: 0, totalLeaders: new Set(), _docs: [] };
+        rowsMap[key] = { label: labelFn(doc), typeCounts: emptyCounts(), totalLeaders: new Set(), _docs: [] };
       }
       rowsMap[key]._docs.push(doc);
       const leaderId = doc.name + '|' + doc.dept;
       const meetings = (doc.meetings && doc.meetings.length) ? doc.meetings :
-        Object.keys(doc.hours || {}).filter(function(t){ return doc.hours[t] > 0; }).map(function(t){ return { type: t }; });
+        Object.keys(doc.hours || {}).filter(function(t){ return doc.hours[t] > 0; }).map(function(t){ return { type: t, duration: doc.hours[t] }; });
       let participated = false;
       meetings.forEach(function(m){
         if (!m.type || !rowsMap[key].typeCounts[m.type]) return;
         participated = true;
-        rowsMap[key].typeCounts[m.type].count++;
-        rowsMap[key].typeCounts[m.type].leaders.add(leaderId);
-        rowsMap[key].totalMeetings++;
-        totalRow.typeCounts[m.type].count++;
-        totalRow.typeCounts[m.type].leaders.add(leaderId);
-        totalRow.totalMeetings++;
+        const eventKey = doc.date + '_' + roundTimeSlot(m.time) + eventScopeSuffix(doc, m.type);
+        const dur = m.duration || 0;
+        [rowsMap[key], totalRow].forEach(function(target){
+          const tc = target.typeCounts[m.type];
+          if (!tc.events.has(eventKey)) tc.events.set(eventKey, []);
+          tc.events.get(eventKey).push(dur);
+          tc.leaders.add(leaderId);
+        });
       });
       if (participated) {
         rowsMap[key].totalLeaders.add(leaderId);
         totalRow.totalLeaders.add(leaderId);
       }
     });
+
+    function eventDuration(durArr){
+      if (!durArr.length) return 0;
+      return durArr.reduce(function(a,b){ return a+b; }, 0) / durArr.length;
+    }
+    function finalize(row){
+      let totalMeetings = 0, totalDuration = 0;
+      MEETING_TYPES.forEach(function(t){
+        const tc = row.typeCounts[t];
+        let dur = 0;
+        tc.events.forEach(function(arr){ dur += eventDuration(arr); });
+        tc.duration = dur;
+        totalMeetings += tc.events.size;
+        totalDuration += dur;
+      });
+      row.totalMeetings = totalMeetings;
+      row.totalDuration = totalDuration;
+    }
+    finalize(totalRow);
+    Object.values(rowsMap).forEach(finalize);
 
     const rows = Object.values(rowsMap).sort(function(a,b){ return a.label.localeCompare(b.label); });
     return { rows: rows, totalRow: totalRow };
@@ -633,7 +709,7 @@
 
     document.getElementById('stats').innerHTML =
       '<div class="stat"><div class="num">' + totalRow.totalMeetings + '</div><div class="label">Жами йиғилиш сони</div></div>' +
-      '<div class="stat"><div class="num">' + totalRow.totalLeaders.size + '</div><div class="label">Иштирок этган раҳбарлар</div></div>' +
+      '<div class="stat"><div class="num">' + totalRow.totalLeaders.size + '</div><div class="label">Иштирок этган раҳбарлар сони</div></div>' +
       '<div class="stat"><div class="num">' + rows.length + '</div><div class="label">' + (opts.rowHeader || 'Қатор') + ' сони</div></div>';
 
     if (!rows.length) {
@@ -645,21 +721,23 @@
 
     let html = '<table class="matrix-table"><thead>';
     html += '<tr><th class="idx-col" rowspan="2">Т/р</th><th rowspan="2">' + (opts.rowHeader || 'Ном') + '</th>' +
-      '<th colspan="2">Жами ўтказилган йиғилишлар</th>' +
-      '<th colspan="' + (MEETING_TYPES.length * 2) + '">шундан</th></tr>';
-    html += '<tr><th class="grp-first">йиғилиш сони</th><th>иштирок раҳбарлар</th>';
+      '<th colspan="3">Жами ўтказилган йиғилишлар</th>' +
+      '<th colspan="' + (MEETING_TYPES.length * 3) + '">шундан</th></tr>';
+    html += '<tr><th class="grp-first">йиғилиш сони</th><th>иштирок этган раҳбарлар сони</th><th>давомийлиги (соат)</th>';
     MEETING_TYPES.forEach(function(t, i){
       html += '<th class="grp-first">' + escapeHtml(t) + '<br><span class="cnt-col">йиғилиш сони</span></th>' +
-        '<th><span class="cnt-col">иштирок раҳбарлар</span></th>';
+        '<th><span class="cnt-col">иштирок этган раҳбарлар сони</span></th>' +
+        '<th><span class="cnt-col">давомийлиги (соат)</span></th>';
     });
     html += '</tr></thead><tbody>';
 
     function cellVal(n){ return n ? n : ''; }
+    function cellDur(n){ return n ? n.toFixed(1).replace('.', ',') : ''; }
     function rowCells(r){
-      let c = '<td class="grp-first">' + cellVal(r.totalMeetings) + '</td><td>' + cellVal(r.totalLeaders.size) + '</td>';
+      let c = '<td class="grp-first">' + cellVal(r.totalMeetings) + '</td><td>' + cellVal(r.totalLeaders.size) + '</td><td>' + cellDur(r.totalDuration) + '</td>';
       MEETING_TYPES.forEach(function(t){
         const tc = r.typeCounts[t];
-        c += '<td class="grp-first">' + cellVal(tc.count) + '</td><td>' + cellVal(tc.leaders.size) + '</td>';
+        c += '<td class="grp-first">' + cellVal(tc.events.size) + '</td><td>' + cellVal(tc.leaders.size) + '</td><td>' + cellDur(tc.duration) + '</td>';
       });
       return c;
     }
