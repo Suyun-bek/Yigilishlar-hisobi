@@ -43,6 +43,15 @@
   #detail button { margin-top: 14px; width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; }
   .empty { padding: 40px; text-align: center; color: #778; }
 
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tab-btn { padding: 8px 16px; background: #fff; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-weight: 700; color: #667; cursor: pointer; }
+  .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .breadcrumb { font-size: 13px; margin-bottom: 10px; color: #667; }
+  .breadcrumb a { color: var(--accent); text-decoration: underline; cursor: pointer; }
+  .drill-row { cursor: pointer; }
+  .drill-row:hover td { background: var(--accent-soft) !important; }
+  .drill-row td:first-child::after { content: ' →'; color: var(--accent); font-weight: 700; }
+
   #loginBox { max-width: 340px; margin: 80px auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 24px; }
   #loginBox h2 { margin: 0 0 14px; font-size: 18px; }
   #loginBox input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; font-size: 15px; }
@@ -77,6 +86,12 @@
     </div>
   </header>
   <div class="stats" id="stats"></div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="leaders">Раҳбарлар бўйича</button>
+    <button class="tab-btn" data-tab="banks">Банклар бўйича</button>
+    <button class="tab-btn" data-tab="regions">Ҳудудлар бўйича</button>
+  </div>
+  <div class="breadcrumb" id="breadcrumb" style="display:none;"></div>
   <div class="table-wrap" id="tableWrap"><div class="empty">Юкланмоқда...</div></div>
 </div>
 
@@ -150,6 +165,30 @@
   document.getElementById('endDate').value = isoDate(today);
 
   let lastDocs = [];
+  let currentTab = 'leaders';
+  let drillPath = []; // umumiy: joriy tabda tanlangan qiymatlar ketma-ketligi
+
+  const BANK_LEVELS = [
+    { field: 'bank', label: 'Банк' },
+    { field: 'viloyat', label: 'Вилоят' },
+    { field: 'tuman', label: 'Туман / шаҳар' }
+  ];
+  const REGION_LEVELS = [
+    { field: 'viloyat', label: 'Вилоят' },
+    { field: 'tuman', label: 'Туман / шаҳар' },
+    { field: 'bank', label: 'Банк' }
+  ];
+
+  document.querySelectorAll('.tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentTab = btn.dataset.tab;
+      drillPath = [];
+      document.getElementById('viloyatFilter').style.visibility = (currentTab === 'leaders') ? 'visible' : 'hidden';
+      renderCurrent();
+    });
+  });
 
   function startListening(){
     if (unsubscribe) unsubscribe();
@@ -184,55 +223,68 @@
   }
 
   function applyFilterAndRender(){
-    const v = document.getElementById('viloyatFilter').value;
-    const filtered = v ? lastDocs.filter(function(d){ return d.viloyat === v; }) : lastDocs;
-    render(filtered);
+    renderCurrent();
   }
 
-  function render(docs){
-    const leadersMap = {};
+  function getBaseFiltered(){
+    const v = document.getElementById('viloyatFilter').value;
+    return v ? lastDocs.filter(function(d){ return d.viloyat === v; }) : lastDocs;
+  }
+
+  function updateStats(rows, dates){
+    let totalHours = 0;
+    rows.forEach(function(r){ Object.values(r.days).forEach(function(v){ totalHours += v; }); });
+    document.getElementById('stats').innerHTML =
+      '<div class="stat"><div class="num">' + rows.length + '</div><div class="label">Қатор</div></div>' +
+      '<div class="stat"><div class="num">' + dates.length + '</div><div class="label">Кун (танланган даврда)</div></div>' +
+      '<div class="stat"><div class="num">' + totalHours.toFixed(1) + '</div><div class="label">Жами соат</div></div>';
+  }
+
+  // Umumiy pivot quruvchi: docs'ni keyFn bo'yicha guruhlaydi, har bir sana uchun total yig'adi
+  function buildPivot(docs, keyFn, makeRow){
+    const map = {};
     const dateSet = {};
     docs.forEach(function(d){
-      const key = (d.viloyat || '') + ' | ' + (d.tuman || '') + ' | ' + d.name + ' | ' + d.dept;
-      if (!leadersMap[key]) leadersMap[key] = { name: d.name, dept: d.dept, viloyat: d.viloyat, tuman: d.tuman, days: {}, types: {} };
-      leadersMap[key].days[d.date] = d.total || 0;
-      leadersMap[key].types[d.date] = d.hours || {};
-      leadersMap[key].meetings = leadersMap[key].meetings || {};
-      leadersMap[key].meetings[d.date] = d.meetings || null;
+      const key = keyFn(d);
+      if (!map[key]) map[key] = makeRow(d);
+      map[key].days[d.date] = (map[key].days[d.date] || 0) + (d.total || 0);
+      map[key]._docs = map[key]._docs || [];
+      map[key]._docs.push(d);
       dateSet[d.date] = true;
     });
     const dates = Object.keys(dateSet).sort();
-    const leaders = Object.values(leadersMap).sort(function(a,b){ return a.name.localeCompare(b.name); });
+    const rows = Object.values(map).sort(function(a,b){ return a.label.localeCompare(b.label); });
+    return { dates: dates, rows: rows };
+  }
 
-    let totalHours = 0;
-    leaders.forEach(function(l){ Object.values(l.days).forEach(function(v){ totalHours += v; }); });
-
-    document.getElementById('stats').innerHTML =
-      '<div class="stat"><div class="num">' + leaders.length + '</div><div class="label">Маълумот киритган раҳбар</div></div>' +
-      '<div class="stat"><div class="num">' + dates.length + '</div><div class="label">Кун (танланган даврда)</div></div>' +
-      '<div class="stat"><div class="num">' + totalHours.toFixed(1) + '</div><div class="label">Жами соат</div></div>';
-
-    if (!leaders.length || !dates.length) {
+  function renderPivotTable(pivot, opts){
+    opts = opts || {};
+    const dates = pivot.dates, rows = pivot.rows;
+    if (!rows.length || !dates.length) {
       document.getElementById('tableWrap').innerHTML = '<div class="empty">Танланган даврда маълумот топилмади.</div>';
+      updateStats([], []);
       return;
     }
+    updateStats(rows, dates);
+    window.__lastRows = rows;
 
-    window.__lastLeaders = leaders;
-
-    let html = '<table><thead><tr><th>Раҳбар</th>';
+    let html = '<table><thead><tr><th>' + (opts.rowHeader || 'Ном') + '</th>';
     dates.forEach(function(d){ html += '<th>' + fmtDate(d) + '</th>'; });
     html += '<th class="col-total">Жами</th></tr></thead><tbody>';
 
-    leaders.forEach(function(l, li){
-      const locLine = [l.viloyat, l.tuman].filter(Boolean).join(', ');
-      html += '<tr><td>' + escapeHtml(l.name) + '<br><span style="font-weight:400;color:#889">' + escapeHtml(l.dept) + '</span>' +
-        (locLine ? '<br><span style="font-weight:400;color:#aab;font-size:11px">' + escapeHtml(locLine) + '</span>' : '') + '</td>';
+    rows.forEach(function(r, ri){
+      const rowClass = opts.onRowClick ? ' class="drill-row"' : '';
+      const rowClick = opts.onRowClick ? ' onclick="window.__rowClick(' + ri + ')"' : '';
+      html += '<tr' + rowClass + rowClick + '><td>' + escapeHtml(r.label) +
+        (r.sub ? '<br><span style="font-weight:400;color:#889">' + escapeHtml(r.sub) + '</span>' : '') +
+        (r.sub2 ? '<br><span style="font-weight:400;color:#aab;font-size:11px">' + escapeHtml(r.sub2) + '</span>' : '') + '</td>';
       let rowTotal = 0;
       dates.forEach(function(d){
-        const v = l.days[d];
+        const v = r.days[d];
         rowTotal += (v || 0);
         if (v) {
-          html += '<td class="cell-clickable" onclick="window.__showDetail(' + li + ',\'' + d + '\')">' + v.toString().replace('.', ',') + '</td>';
+          const cellClick = opts.onCellClick ? (' class="cell-clickable" onclick="event.stopPropagation();window.__cellClick(' + ri + ',\'' + d + '\')"') : '';
+          html += '<td' + cellClick + '>' + v.toString().replace('.', ',') + '</td>';
         } else {
           html += '<td class="zero">—</td>';
         }
@@ -241,31 +293,114 @@
     });
     html += '</tbody></table>';
     document.getElementById('tableWrap').innerHTML = html;
+
+    window.__rowClick = opts.onRowClick ? function(ri){ opts.onRowClick(rows[ri]); } : function(){};
+    window.__cellClick = opts.onCellClick ? function(ri, date){ opts.onCellClick(rows[ri], date); } : function(){};
+  }
+
+  function showDetailForDocs(docs, date, title){
+    const dayDocs = docs.filter(function(d){ return d.date === date; });
+    document.getElementById('detailTitle').textContent = title + ' — ' + fmtDate(date);
+    const list = document.getElementById('detailList');
+    let items = [];
+    dayDocs.forEach(function(d){
+      if (d.meetings && d.meetings.length) {
+        d.meetings.forEach(function(m){
+          const who = dayDocs.length > 1 ? (d.name + ': ') : '';
+          const timePart = m.time ? (m.time + ' — ') : '';
+          items.push('<li><span>' + who + timePart + escapeHtml(m.type) + '</span><span>' + m.duration + ' соат</span></li>');
+        });
+      } else if (d.hours) {
+        Object.keys(d.hours).filter(function(t){ return d.hours[t] > 0; }).forEach(function(t){
+          const who = dayDocs.length > 1 ? (d.name + ': ') : '';
+          items.push('<li><span>' + who + escapeHtml(t) + '</span><span>' + d.hours[t] + ' соат</span></li>');
+        });
+      }
+    });
+    list.innerHTML = items.join('') || '<li>Маълумот йўқ</li>';
+    document.getElementById('detail').style.display = 'flex';
+  }
+
+  function renderCurrent(){
+    if (currentTab === 'leaders') return renderLeadersTab();
+    if (currentTab === 'banks') return renderDrillTab(BANK_LEVELS);
+    if (currentTab === 'regions') return renderDrillTab(REGION_LEVELS);
+  }
+
+  function renderLeadersTab(){
+    document.getElementById('breadcrumb').style.display = 'none';
+    const docs = getBaseFiltered();
+    const pivot = buildPivot(docs,
+      function(d){ return d.viloyat + '|' + d.tuman + '|' + d.name + '|' + d.dept; },
+      function(d){
+        const locLine = [d.viloyat, d.tuman].filter(Boolean).join(', ');
+        return { label: d.name, sub: d.dept, sub2: locLine, days: {} };
+      });
+    renderPivotTable(pivot, {
+      rowHeader: 'Раҳбар',
+      onCellClick: function(row, date){ showDetailForDocs(row._docs, date, row.label); }
+    });
+  }
+
+  // Умумий "ичкари кириб бориш" функцияси: levels — масалан [Банк, Вилоят, Туман]
+  // drillPath.length ҳали levels.length'дан кам бўлса — навбатдаги даражани кўрсатади;
+  // барча даражалар танлангач — шу кесимдаги раҳбарлар рўйхатини (жадвал) кўрсатади.
+  function renderDrillTab(levels){
+    const docs = lastDocs;
+    const bc = document.getElementById('breadcrumb');
+    bc.style.display = 'block';
+
+    // Joriy filtrlangan hujjatlar (drillPath bo'yicha)
+    let filtered = docs;
+    levels.forEach(function(lvl, i){
+      if (i < drillPath.length) {
+        filtered = filtered.filter(function(d){ return d[lvl.field] === drillPath[i]; });
+      }
+    });
+
+    // Breadcrumb
+    let crumbs = ['<a onclick="window.__bcTo(0)">Барчаси</a>'];
+    drillPath.forEach(function(val, i){
+      crumbs.push('<a onclick="window.__bcTo(' + (i+1) + ')">' + escapeHtml(val) + '</a>');
+    });
+    bc.innerHTML = crumbs.join(' &rsaquo; ');
+    window.__bcTo = function(depth){ drillPath = drillPath.slice(0, depth); renderCurrent(); };
+
+    if (drillPath.length < levels.length) {
+      const lvl = levels[drillPath.length];
+      const nextLvl = levels[drillPath.length + 1];
+      const pivot = buildPivot(filtered,
+        function(d){ return d[lvl.field]; },
+        function(d){ return { label: d[lvl.field] || '(номаълум)', sub: '', days: {} }; });
+      pivot.rows.forEach(function(r){
+        if (nextLvl) {
+          const cnt = new Set(r._docs.map(function(d){ return d[nextLvl.field]; })).size;
+          r.sub = cnt + ' ' + nextLvl.label.toLowerCase() + ' бўйича маълумот бор';
+        } else {
+          const cnt = new Set(r._docs.map(function(d){ return d.name + '|' + d.dept; })).size;
+          r.sub = cnt + ' раҳбар маълумот киритган';
+        }
+      });
+      renderPivotTable(pivot, {
+        rowHeader: lvl.label,
+        onRowClick: function(row){ drillPath = drillPath.concat([row.label]); renderCurrent(); }
+      });
+      return;
+    }
+
+    // Барча даражалар танланган — раҳбарлар рўйхати
+    const pivot = buildPivot(filtered,
+      function(d){ return d.name + '|' + d.dept; },
+      function(d){ return { label: d.name, sub: d.dept, days: {} }; });
+    renderPivotTable(pivot, {
+      rowHeader: 'Раҳбар',
+      onCellClick: function(row, date){ showDetailForDocs(row._docs, date, row.label); }
+    });
   }
 
   function fmtDate(iso){ const p = iso.split('-'); return p[2] + '.' + p[1]; }
   function escapeHtml(s){ return String(s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
 
-  window.__showDetail = function(leaderIndex, date){
-    const l = window.__lastLeaders[leaderIndex];
-    const meetings = (l.meetings && l.meetings[date]) || null;
-    const types = (l.types && l.types[date]) || {};
-    document.getElementById('detailTitle').textContent = l.name + ' — ' + fmtDate(date);
-    const list = document.getElementById('detailList');
-    let rows;
-    if (meetings && meetings.length) {
-      rows = meetings.map(function(m){
-        const timePart = m.time ? (m.time + ' — ') : '';
-        return '<li><span>' + timePart + escapeHtml(m.type) + '</span><span>' + m.duration + ' соат</span></li>';
-      }).join('');
-    } else {
-      rows = Object.keys(types).filter(function(t){ return types[t] > 0; }).map(function(t){
-        return '<li><span>' + escapeHtml(t) + '</span><span>' + types[t] + ' соат</span></li>';
-      }).join('');
-    }
-    list.innerHTML = rows || '<li>Маълумот йўқ</li>';
-    document.getElementById('detail').style.display = 'flex';
-  };
 </script>
 </body>
 </html>
