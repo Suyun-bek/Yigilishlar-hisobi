@@ -164,9 +164,6 @@
     updateSubmitState();
   }
 
-  document.getElementById('addRowBtn').addEventListener('click', addMeetingRow);
-  addMeetingRow();
-
   function getMeetingRows() {
     return Array.from(meetingRows.querySelectorAll('.meeting-row')).map(function(row){
       const type = row.querySelector('.m-type').value;
@@ -209,6 +206,9 @@
 
   let currentRecord = null;
   let manualMode = false;
+
+  document.getElementById('addRowBtn').addEventListener('click', addMeetingRow);
+  addMeetingRow();
 
   fillSelect(viloyatSel, uniqueSorted(LEADERS_DATA.map(function(r){ return r.v; })), '— Танланг —');
 
