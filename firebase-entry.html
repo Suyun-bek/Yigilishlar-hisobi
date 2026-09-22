@@ -4,47 +4,55 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Йиғилиш ҳисоботи</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #1c2b24; --paper: #f6f4ee; --line: #c9cabb;
-    --accent: #2f5d4f; --accent-soft: #e4ede8; --danger: #a13d3d;
+    --ink: #16241d; --paper: #f1f3ef; --line: #d6dad2; --panel: #ffffff;
+    --accent: #2c6b4f; --accent-deep: #1c4a36; --accent-soft: #e2ebe3;
+    --danger: #a13d2f; --danger-soft: #f6e4e2; --muted: #66756a;
+    --serif: "IBM Plex Serif", Georgia, serif;
+    --sans: "IBM Plex Sans", "Noto Sans", Arial, sans-serif;
   }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--paper); color:var(--ink); font-family:"Segoe UI","Noto Sans",Arial,sans-serif; line-height:1.45; padding:24px 16px 64px; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); line-height:1.48; padding:26px 16px 64px; }
   .wrap { max-width:560px; margin:0 auto; }
-  header { margin-bottom:24px; }
+  header { margin-bottom:26px; padding-bottom:18px; border-bottom:1px solid var(--line); }
   header .eyebrow { font-size:13px; color:var(--accent); font-weight:600; }
-  header h1 { font-size:22px; margin:6px 0 4px; font-weight:700; }
-  header p { margin:0; color:#55605a; font-size:14px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:20px; margin-bottom:16px; }
-  label { display:block; font-size:14px; font-weight:600; margin-bottom:6px; }
+  header h1 { font-family:var(--serif); font-size:23px; margin:6px 0 5px; font-weight:600; letter-spacing:-0.01em; }
+  header p { margin:0; color:var(--muted); font-size:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; font-weight:600; margin-bottom:6px; color:var(--ink); }
   select, input[type=text], input[type=date], input[type=number] {
-    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
-    font-size:15px; background:#fff; color:var(--ink); font-family:inherit;
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:6px;
+    font-size:15px; background:var(--panel); color:var(--ink); font-family:var(--sans);
   }
-  select:disabled { background:#f2f1eb; color:#9a9a8e; }
+  select:disabled { background:#eceee9; color:#93a196; }
   input:focus, select:focus { outline:2px solid var(--accent); outline-offset:1px; }
   .field { margin-bottom:14px; }
   .leader-box {
-    background:var(--accent-soft); border:1px solid var(--accent); border-radius:8px;
-    padding:12px 14px; font-size:15px; font-weight:700; color:var(--accent); margin-bottom:8px;
-    display:none;
+    background:var(--accent-soft); border:1px solid var(--accent); border-radius:6px;
+    padding:12px 14px; font-size:15px; font-weight:600; color:var(--accent-deep); margin-bottom:8px;
+    font-family:var(--serif); display:none;
   }
-  .switch-link { font-size:13px; color:#667; text-decoration:underline; cursor:pointer; display:inline-block; margin-bottom:10px; }
-  .meeting-row { border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:10px; position:relative; background:#fafaf7; }
+  .switch-link { font-size:13px; color:var(--muted); text-decoration:underline; cursor:pointer; display:inline-block; margin-bottom:10px; }
+  .meeting-row { border:1px solid var(--line); border-radius:6px; padding:12px; margin-bottom:10px; position:relative; background:#f8f9f6; }
   .meeting-row .field { margin-bottom:8px; }
   .meeting-row .field:last-child { margin-bottom:0; }
-  .meeting-row label { font-size:12px; color:#667; margin-bottom:4px; }
+  .meeting-row label { font-size:12px; color:var(--muted); margin-bottom:4px; }
   .meeting-row .row2 { display:flex; gap:8px; }
   .meeting-row .row2 > div { flex:1; }
-  .remove-row { position:absolute; top:8px; right:10px; background:none; border:none; color:#a13d3d; font-size:13px; font-weight:700; width:auto; padding:2px 6px; cursor:pointer; }
-  .add-row-btn { width:100%; padding:10px; background:#fff; color:var(--accent); border:2px dashed var(--accent); border-radius:8px; font-weight:700; cursor:pointer; margin-bottom:14px; font-size:14px; }
-  .total-line { display:flex; justify-content:space-between; font-weight:700; padding-top:12px; margin-top:6px; border-top:2px solid var(--ink); }
-  button { width:100%; padding:14px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:16px; font-weight:700; cursor:pointer; }
+  .remove-row { position:absolute; top:8px; right:10px; background:none; border:none; color:var(--danger); font-size:13px; font-weight:700; width:auto; padding:2px 6px; cursor:pointer; }
+  .add-row-btn { width:100%; padding:10px; background:var(--panel); color:var(--accent-deep); border:1.5px dashed var(--accent); border-radius:6px; font-weight:600; cursor:pointer; margin-bottom:14px; font-size:14px; }
+  .total-line { display:flex; justify-content:space-between; align-items:baseline; font-weight:600; padding-top:12px; margin-top:6px; border-top:1.5px solid var(--ink); }
+  .total-line span:last-child { font-family:var(--serif); font-size:19px; font-weight:600; color:var(--accent-deep); }
+  button { width:100%; padding:14px; background:var(--accent); color:#fff; border:none; border-radius:6px; font-size:16px; font-weight:600; cursor:pointer; font-family:var(--sans); transition:background .15s; }
+  button:hover:not(:disabled) { background:var(--accent-deep); }
   button:disabled { opacity:0.5; cursor:not-allowed; }
-  .msg { margin-top:14px; padding:12px 14px; border-radius:8px; font-size:14px; display:none; }
-  .msg.ok { display:block; background:var(--accent-soft); color:var(--accent); }
-  .msg.err { display:block; background:#f6e4e4; color:var(--danger); }
+  .msg { margin-top:14px; padding:12px 14px; border-radius:6px; font-size:14px; display:none; }
+  .msg.ok { display:block; background:var(--accent-soft); color:var(--accent-deep); }
+  .msg.err { display:block; background:var(--danger-soft); color:var(--danger); }
   .hidden { display:none !important; }
 </style>
 </head>
