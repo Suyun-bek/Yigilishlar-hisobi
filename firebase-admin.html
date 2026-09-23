@@ -108,20 +108,57 @@
 
   #loginBox { max-width: 350px; margin: 90px auto; background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 6px; padding: 28px; }
   #loginBox h2 { margin: 0 0 16px; font-family: var(--serif); font-weight: 600; font-size: 19px; }
-  #loginBox input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 5px; margin-bottom: 10px; font-size: 15px; font-family: var(--sans); }
+  #loginBox input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 5px; margin-bottom: 10px; font-size: 16px; font-family: var(--sans); }
   #loginBox button { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 5px; font-weight: 600; cursor: pointer; }
   #loginErr { color: var(--danger); font-size: 13px; margin-top: 8px; display: none; }
+  .switch-link { font-size: 13px; color: var(--accent-deep); text-decoration: underline; cursor: pointer; display: block; text-align: center; margin-top: 14px; }
   #app { display: none; }
+
+  /* ====== ТЕЛЕФОН / ПЛАНШЕТ УЧУН МОСЛАШУВ ====== */
+  @media (max-width: 760px) {
+    body { padding: 14px 10px 30px; }
+    header { flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; }
+    header h1 { font-size: 19px; }
+    header p { font-size: 12.5px; }
+    .controls { width: 100%; gap: 8px; }
+    .controls label { width: 34px; }
+    .controls input[type=date] { flex: 1; min-width: 0; }
+    .controls select { flex: 1; min-width: 0; }
+    .controls button { flex: 1; padding: 10px 8px; }
+    .stats { gap: 8px; margin-bottom: 14px; }
+    .stat { flex: 1 1 calc(50% - 8px); min-width: 0; padding: 10px 12px; }
+    .stat .num { font-size: 21px; }
+    .tabs {
+      flex-wrap: nowrap; overflow-x: auto; gap: 16px; -webkit-overflow-scrolling: touch;
+      padding-bottom: 2px; margin-bottom: 14px; scrollbar-width: thin;
+    }
+    .tab-btn { white-space: nowrap; flex: none; font-size: 13px; }
+    .table-wrap { max-height: 64vh; border-radius: 5px; }
+    .matrix-table th, .matrix-table td { padding: 4px 6px; font-size: 11px; }
+    .matrix-table thead th { max-width: 44px; }
+    .simple-table th, .simple-table td { padding: 7px 8px; font-size: 12.5px; }
+    .rank-cols { flex-direction: column; gap: 18px; padding: 12px; }
+    .rank-col { min-width: 0; }
+    .trend-chart { padding: 16px 8px; }
+    #loginBox { margin: 40px auto; max-width: 90%; padding: 22px; }
+    .bank-logo-box { width: 24px; height: 20px; margin-right: 5px; }
+    .threshold-box { flex-wrap: wrap; }
+  }
+  @media (max-width: 420px) {
+    .stat { flex: 1 1 100%; }
+    header h1 { font-size: 17px; }
+  }
 </style>
 </head>
 <body>
 
 <div id="loginBox">
-  <h2>Свод — кириш</h2>
+  <h2 id="loginTitle">Свод — кириш</h2>
   <input type="text" id="email" placeholder="Электрон почта">
   <input type="password" id="password" placeholder="Парол">
   <button id="loginBtn">Кириш</button>
   <div id="loginErr"></div>
+  <div class="switch-link" id="toggleModeLink" onclick="window.__toggleAuthMode()">Ҳисобингиз йўқми? Рўйхатдан ўтинг</div>
 </div>
 
 <div id="app">
@@ -165,7 +202,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import {
-    getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+    getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
   import {
     getFirestore, collection, query, where, onSnapshot
@@ -201,6 +238,19 @@
   // ======================================================================================================
 
   let unsubscribe = null;
+  let authMode = 'login'; // 'login' | 'register'
+
+  window.__toggleAuthMode = function(){
+    authMode = (authMode === 'login') ? 'register' : 'login';
+    const isReg = authMode === 'register';
+    document.getElementById('loginTitle').textContent = isReg ? 'Свод — рўйхатдан ўтиш' : 'Свод — кириш';
+    document.getElementById('loginBtn').textContent = isReg ? 'Рўйхатдан ўтиш' : 'Кириш';
+    document.getElementById('toggleModeLink').textContent = isReg
+      ? 'Ҳисобингиз борми? Киринг'
+      : 'Ҳисобингиз йўқми? Рўйхатдан ўтинг';
+    document.getElementById('password').placeholder = isReg ? 'Парол ўйланг (камида 6 та белги)' : 'Парол';
+    document.getElementById('loginErr').style.display = 'none';
+  };
 
   document.getElementById('loginBtn').addEventListener('click', async function(){
     const email = document.getElementById('email').value.trim();
@@ -208,9 +258,18 @@
     const err = document.getElementById('loginErr');
     err.style.display = 'none';
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
+      if (authMode === 'register') {
+        await createUserWithEmailAndPassword(auth, email, pass);
+      } else {
+        await signInWithEmailAndPassword(auth, email, pass);
+      }
     } catch (e) {
-      err.textContent = 'Кириш хатолиги: email/парол нотўғри.';
+      let msg = 'Хатолик: ' + e.message;
+      if (e.code === 'auth/email-already-in-use') msg = 'Бу email аллақачон рўйхатдан ўтган. "Киринг" тугмасидан фойдаланинг.';
+      else if (e.code === 'auth/weak-password') msg = 'Парол камида 6 та белгидан иборат бўлиши керак.';
+      else if (e.code === 'auth/invalid-email') msg = 'Email нотўғри киритилди.';
+      else if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msg = 'Email/парол нотўғри.';
+      err.textContent = msg;
       err.style.display = 'block';
     }
   });
